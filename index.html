@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HTML5 Játékközpont Pro v2</title>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            background-color: #0f0f15;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; touch-action: none;
+        }
+
+        /* Főmenü */
+        #main-menu {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh;
+            background: radial-gradient(circle at center, #2b2b36 0%, #0f0f15 100%);
+        }
+
+        h1 {
+            font-size: 3rem; margin-bottom: 40px;
+            text-transform: uppercase; letter-spacing: 2px;
+            background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .cards-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; }
+
+        .card {
+            background: linear-gradient(145deg, #22222a, #191920);
+            border: 1px solid #333;
+            border-radius: 20px;
+            padding: 30px 20px; width: 220px;
+            text-align: center; cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: #00C9FF;
+            box-shadow: 0 15px 30px rgba(0, 201, 255, 0.2);
+        }
+
+        .card h2 { margin: 0 0 10px 0; font-size: 1.6rem; color: #fff; }
+        .card p { margin: 0; font-size: 0.9rem; color: #aaa; }
+
+        /* Játéktér */
+        #game-container { display: none; position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI réteg */
+        #ui-layer {
+            position: absolute; top: 20px; left: 20px; right: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 10; pointer-events: none;
+        }
+        #score-display { font-size: 1.8rem; font-weight: 900; text-shadow: 2px 2px 0px #000; }
+        .btn {
+            background: linear-gradient(90deg, #ff416c, #ff4b2b);
+            color: white; border: none; padding: 12px 24px;
+            border-radius: 10px; font-size: 1rem; font-weight: bold;
+            cursor: pointer; pointer-events: auto;
+            text-transform: uppercase; box-shadow: 0 4px 15px rgba(255, 65, 108, 0.4);
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+
+        /* Touch Controllok */
+        #controls-layer {
+            position: absolute; bottom: 40px; left: 0; width: 100%;
+            display: flex; justify-content: space-between; padding: 0 40px;
+            box-sizing: border-box; z-index: 10; pointer-events: none;
+        }
+        .touch-btn {
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(5px);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%; width: 90px; height: 90px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 2.5rem; color: rgba(255,255,255,0.8);
+            user-select: none; pointer-events: auto;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .touch-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+        #btn-jump { display: none; width: 160px; border-radius: 45px; margin-left: auto; font-size: 1.5rem; font-weight: bold; }
+        #race-controls { display: flex; justify-content: space-between; width: 100%; }
+
+        /* Game Over */
+        #game-over-screen {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 21, 0.95);
+            padding: 50px; border-radius: 20px; text-align: center;
+            z-index: 20; border: 1px solid #333;
+            box-shadow: 0 20px 50px rgba(0,0,0,1); backdrop-filter: blur(10px);
+        }
+        #game-over-screen h2 { color: #ff4b2b; margin-top: 0; font-size: 3rem; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+    <div id="main-menu">
+        <h1>Játékközpont</h1>
+        <div class="cards-container">
+            <div class="card" onclick="startGame('car')">
+                <h2>Autóverseny</h2>
+                <p>3 Sávos aszfalt<br>Kerüld a forgalmat!</p>
+            </div>
+            <div class="card" onclick="startGame('motor')">
+                <h2>Motorverseny</h2>
+                <p>4 Sávos szűk út<br>Nagyobb sebesség!</p>
+            </div>
+            <div class="card" onclick="startGame('dash')">
+                <h2>Dash Jump</h2>
+                <p>Ugrálós platformer<br>Kerüld a tüskéket!</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <button class="btn" onclick="backToMenu()">&#8592; Menü</button>
+            <div id="score-display">Pont: 0</div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="controls-layer">
+            <div id="race-controls">
+                <div class="touch-btn" id="btn-left">&#8592;</div>
+                <div class="touch-btn" id="btn-right">&#8594;</div>
+            </div>
+            <div class="touch-btn" id="btn-jump">UGRÁS</div>
+        </div>
+        <div id="game-over-screen">
+            <h2>BUMM!</h2>
+            <p id="final-score" style="font-size: 1.8rem; margin-bottom: 30px;">Pontszám: 0</p>
+            <button class="btn" style="background: linear-gradient(90deg, #11998e, #38ef7d);" onclick="restartGame()">Újraindulás</button>
+        </div>
+    </div>
+
+    <script>
+        const mainMenu = document.getElementById('main-menu');
+        const gameContainer = document.getElementById('game-container');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreText = document.getElementById('final-score');
+        
+        const raceControls = document.getElementById('race-controls');
+        const btnJump = document.getElementById('btn-jump');
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        let currentGame = '';
+        let animationId;
+        let isGameOver = false;
+        let score = 0;
+        let frameCount = 0;
+        let gameSpeed = 0;
+
+        let player = {};
+        let entities = [];
+        let particles = [];
+        
+        let roadWidth = 0;
+        let roadLeft = 0;
+        let numLanes = 3;
+        let laneWidth = 0;
+
+        let keys = { jump: false, leftPressed: false, rightPressed: false };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            roadWidth = Math.min(canvas.width * 0.9, 600);
+            roadLeft = (canvas.width - roadWidth) / 2;
+            
+            if(currentGame === 'car' || currentGame === 'motor') {
+                numLanes = (currentGame === 'motor') ? 4 : 3;
+                laneWidth = roadWidth / numLanes;
+                
+                if(player.w) {
+                    player.w = laneWidth * (currentGame === 'motor' ? 0.4 : 0.65);
+                    player.h = player.w * (currentGame === 'motor' ? 2.3 : 1.8);
+                    updatePlayerTargetX();
+                    player.x = player.targetX;
+                }
+            } else if(currentGame === 'dash' && player.h) {
+                player.y = canvas.height - 100 - player.h;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function handleLaneSwitch(direction) {
+            if(isGameOver || currentGame === 'dash') return;
+            player.lane += direction;
+            if(player.lane < 0) player.lane = 0;
+            if(player.lane >= numLanes) player.lane = numLanes - 1;
+            updatePlayerTargetX();
+        }
+
+        function updatePlayerTargetX() {
+            player.targetX = roadLeft + (player.lane * laneWidth) + (laneWidth - player.w) / 2;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if((e.code === 'ArrowLeft' || e.key === 'a') && !keys.leftPressed) {
+                keys.leftPressed = true; handleLaneSwitch(-1);
+            }
+            if((e.code === 'ArrowRight' || e.key === 'd') && !keys.rightPressed) {
+                keys.rightPressed = true; handleLaneSwitch(1);
+            }
+            if(e.code === 'Space' || e.code === 'ArrowUp' || e.key === 'w') {
+                keys.jump = true; e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if(e.code === 'ArrowLeft' || e.key === 'a') keys.leftPressed = false;
+            if(e.code === 'ArrowRight' || e.key === 'd') keys.rightPressed = false;
+            if(e.code === 'Space' || e.code === 'ArrowUp' || e.key === 'w') keys.jump = false;
+        });
+
+        btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleLaneSwitch(-1); });
+        btnLeft.addEventListener('mousedown', (e) => { e.preventDefault(); handleLaneSwitch(-1); });
+        
+        btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleLaneSwitch(1); });
+        btnRight.addEventListener('mousedown', (e) => { e.preventDefault(); handleLaneSwitch(1); });
+
+        ['touchstart', 'mousedown'].forEach(evt => {
+            btnJump.addEventListener(evt, (e) => { e.preventDefault(); keys.jump = true; });
+            canvas.addEventListener(evt, (e) => { if(currentGame === 'dash') keys.jump = true; });
+        });
+        ['touchend', 'mouseup'].forEach(evt => {
+            btnJump.addEventListener(evt, (e) => { e.preventDefault(); keys.jump = false; });
+            canvas.addEventListener(evt, (e) => { if(currentGame === 'dash') keys.jump = false; });
+        });
+
+        function startGame(gameType) {
+            currentGame = gameType;
+            mainMenu.style.display = 'none';
+            gameContainer.style.display = 'block';
+            gameOverScreen.style.display = 'none';
+            
+            if(gameType === 'dash') {
+                raceControls.style.display = 'none'; btnJump.style.display = 'flex';
+            } else {
+                raceControls.style.display = 'flex'; btnJump.style.display = 'none';
+            }
+            resetGameData(); gameLoop();
+        }
+
+        function restartGame() {
+            gameOverScreen.style.display = 'none';
+            resetGameData(); gameLoop();
+        }
+
+        function backToMenu() {
+            cancelAnimationFrame(animationId);
+            gameContainer.style.display = 'none'; mainMenu.style.display = 'flex';
+        }
+
+        function gameOver() {
+            isGameOver = true; cancelAnimationFrame(animationId);
+            finalScoreText.innerText = `Pontszám: ${score}`;
+            gameOverScreen.style.display = 'block';
+        }
+
+        function updateScore(points) {
+            score += points; scoreDisplay.innerText = `Pont: ${score}`;
+        }
+
+        function resetGameData() {
+            isGameOver = false; score = 0; frameCount = 0;
+            entities = []; particles = [];
+            scoreDisplay.innerText = `Pont: 0`;
+            resizeCanvas();
+
+            if (currentGame === 'car' || currentGame === 'motor') {
+                let isMotor = (currentGame === 'motor');
+                player.lane = Math.floor(numLanes / 2);
+                player.w = laneWidth * (isMotor ? 0.4 : 0.65);
+                player.h = player.w * (isMotor ? 2.3 : 1.8);
+                updatePlayerTargetX();
+                player.x = player.targetX;
+                player.y = canvas.height - player.h - 80;
+                player.color = isMotor ? '#00e676' : '#29b6f6';
+                gameSpeed = isMotor ? 10 : 7;
+            } 
+            else if (currentGame === 'dash') {
+                player = {
+                    w: 40, h: 40, x: Math.min(150, canvas.width / 4),
+                    y: canvas.height - 100 - 40, vy: 0, gravity: 0.8,
+                    jumpPower: -14, isJumping: false, color: '#00C9FF'
+                };
+                gameSpeed = 8;
+                for(let i=0; i<30; i++) particles.push({ x: Math.random()*canvas.width, y: Math.random()*(canvas.height-100), s: Math.random()*3+1 });
+            }
+        }
+
+        function gameLoop() {
+            if (isGameOver) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (currentGame === 'car' || currentGame === 'motor') updateRacing();
+            else if (currentGame === 'dash') updateDash();
+
+            frameCount++;
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- GRAFIKAI RAJZOLÓK ---
+
+        function drawCar(x, y, w, h, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Kerekek
+            ctx.fillStyle = '#111';
+            let wheelW = w * 0.12, wheelH = h * 0.22;
+            ctx.fillRect(-wheelW+2, h*0.12, wheelW, wheelH);
+            ctx.fillRect(w-2, h*0.12, wheelW, wheelH);
+            ctx.fillRect(-wheelW+2, h*0.68, wheelW, wheelH);
+            ctx.fillRect(w-2, h*0.68, wheelW, wheelH);
+
+            // Karosszéria árnyékkal
+            ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 4;
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.roundRect(0, 0, w, h, w*0.25); ctx.fill();
+            ctx.shadowColor = 'transparent';
+
+            // Ablakok (Szélvédő)
+            ctx.fillStyle = 'rgba(15, 25, 35, 0.85)';
+            ctx.beginPath(); ctx.roundRect(w*0.12, h*0.22, w*0.76, h*0.48, w*0.1); ctx.fill();
+            
+            // Tetőlemez
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.roundRect(w*0.16, h*0.34, w*0.68, h*0.28, w*0.08); ctx.fill();
+
+            // Első fényszórók (Neon sárga)
+            ctx.fillStyle = '#fffb96';
+            ctx.fillRect(w*0.12, 0, w*0.2, h*0.06);
+            ctx.fillRect(w*0.68, 0, w*0.2, h*0.06);
+
+            // Hátsó féklámpák
+            ctx.fillStyle = '#ff2a2a';
+            ctx.fillRect(w*0.12, h*0.94, w*0.18, h*0.06);
+            ctx.fillRect(w*0.70, h*0.94, w*0.18, h*0.06);
+
+            ctx.restore();
+        }
+
+        function drawMotorbike(x, y, w, h, color) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 6; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3;
+
+            // Kerekek (Középen vonalban)
+            ctx.fillStyle = '#151515';
+            ctx.beginPath(); ctx.roundRect(w*0.32, -h*0.05, w*0.36, h*0.22, w*0.1); ctx.fill();
+            ctx.beginPath(); ctx.roundRect(w*0.32, h*0.83, w*0.36, h*0.22, w*0.1); ctx.fill();
+            ctx.shadowColor = 'transparent';
+
+            // Motor váz
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.roundRect(w*0.32, h*0.12, w*0.36, h*0.76, w*0.15); ctx.fill();
+
+            // Kormány keresztben
+            ctx.fillStyle = '#444';
+            ctx.fillRect(w*0.05, h*0.16, w*0.9, h*0.04);
+
+            // Sisak és motoros felsőteste
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.arc(w*0.5, h*0.44, w*0.32, 0, Math.PI*2); ctx.fill(); // Bukósisak
+            ctx.fillStyle = '#d35400'; // Narancs protektoros ruha
+            ctx.beginPath(); ctx.roundRect(w*0.22, h*0.52, w*0.56, h*0.26, w*0.15); ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawRoad(speed) {
+            // Környezet/Fű
+            ctx.fillStyle = '#142214'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Aszfalt szürke
+            ctx.fillStyle = '#26262b'; ctx.fillRect(roadLeft, 0, roadWidth, canvas.height);
+
+            // Rázókövek széleken
+            let curbW = 12;
+            let curbH = 45;
+            let curbOffset = (frameCount * speed) % (curbH * 2);
+            
+            for(let y = -curbH * 2; y < canvas.height; y += curbH) {
+                ctx.fillStyle = Math.floor((y + curbOffset) / curbH) % 2 === 0 ? '#e74c3c' : '#f5f6fa';
+                ctx.fillRect(roadLeft - curbW, y, curbW, curbH);
+                ctx.fillRect(roadLeft + roadWidth, y, curbW, curbH);
+            }
+
+            // Sávfelfestések
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.setLineDash([25, 35]);
+            ctx.lineDashOffset = -(frameCount * speed);
+
+            ctx.beginPath();
+            for(let i = 1; i < numLanes; i++) {
+                let lineX = roadLeft + i * laneWidth;
+                ctx.moveTo(lineX, 0); ctx.lineTo(lineX, canvas.height);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // --- AUTOMATIKUS ÜTKÖZÉS ÉS JÁTÉKMENET REFORM ---
+
+        function updateRacing() {
+            let isMotor = (currentGame === 'motor');
+            drawRoad(gameSpeed);
+
+            // Selymes, reszponzív sávváltás lerp-eléssel
+            player.x += (player.targetX - player.x) * 0.25;
+
+            if(frameCount % 800 === 0) gameSpeed += 0.4;
+
+            // AKADÁLY GENERÁLÁS (Ritkított és egymásba csúszás mentesített logikával)
+            // Megnövelt spawnRate (Pl. 65 és 95): sokkal ritkábban jönnek autók!
+            let spawnRate = isMotor ? 65 : 95; 
+            if (frameCount % Math.max(30, spawnRate - Math.floor(gameSpeed)) === 0) {
+                let lane = Math.floor(Math.random() * numLanes);
+                
+                let w = laneWidth * (isMotor ? 0.4 : 0.65);
+                let h = w * (isMotor ? 2.3 : 1.8);
+                
+                // OKOS ELLENŐRZÉS: Csak akkor rakunk le autót, ha az adott sáv teteje szabad (legalább 220px-es pufferzóna)
+                let isLaneOccupiedAtTop = entities.some(e => e.lane === lane && e.y < h + 220);
+                
+                if (!isLaneOccupiedAtTop) {
+                    let x = roadLeft + (lane * laneWidth) + (laneWidth - w) / 2;
+                    let isBoost = isMotor && Math.random() < 0.2; // Motorosnak turbo bónusz esélye
+                    let colorList = ['#e74c3c', '#9b59b6', '#f1c40f', '#e67e22', '#34495e'];
+                    
+                    entities.push({
+                        x: x, y: -h - 30, w: w, h: h, lane: lane,
+                        type: isBoost ? 'boost' : (isMotor ? 'enemyMotor' : 'enemyCar'),
+                        color: isBoost ? '#00e676' : colorList[Math.floor(Math.random()*colorList.length)],
+                        speedModifier: Math.random() * 1.2 // Minimális belső sebesség-variáció
+                    });
+                }
+            }
+
+            // Entitások léptetése és ütközése
+            for (let i = entities.length - 1; i >= 0; i--) {
+                let e = entities[i];
+                // Az autók picit lassabban jönnek szembe, így könnyebb reagálni és kikerülni őket
+                e.y += gameSpeed - (e.type === 'boost' ? 0 : 2.5 - e.speedModifier);
+
+                if(e.type === 'boost') {
+                    ctx.fillStyle = e.color;
+                    ctx.beginPath(); ctx.arc(e.x + e.w/2, e.y + e.h/2, e.w/1.4, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = "bold 18px Arial";
+                    ctx.fillText("⚡", e.x + e.w/2, e.y + e.h/2);
+                } else if(e.type === 'enemyMotor') {
+                    drawMotorbike(e.x, e.y, e.w, e.h, e.color);
+                } else {
+                    drawCar(e.x, e.y, e.w, e.h, e.color);
+                }
+
+                // MEGBOCSÁTÓ HITBOX LOGIKA ("Bevágás" engedélyezése)
+                // Csökkentjük a fizikai hitbox méretét a vizuálishoz képest, így szűken is be lehet vágni eléjük!
+                let p_hit_x1 = player.x + player.w * 0.15;
+                let p_hit_x2 = player.x + player.w * 0.85;
+                let p_hit_y1 = player.y + player.h * 0.15;
+                let p_hit_y2 = player.y + player.h * 0.85;
+
+                let e_hit_x1 = e.x + e.w * 0.15;
+                let e_hit_x2 = e.x + e.w * 0.85;
+                let e_hit_y1 = e.y + e.h * 0.15;
+                let e_hit_y2 = e.y + e.h * 0.85;
+
+                if (p_hit_x1 < e_hit_x2 && p_hit_x2 > e_hit_x1 && 
+                    p_hit_y1 < e_hit_y2 && p_hit_y2 > e_hit_y1) {
+                    
+                    if(e.type === 'boost') {
+                        updateScore(10);
+                        entities.splice(i, 1);
+                        continue;
+                    } else {
+                        gameOver();
+                    }
+                }
+
+                // Ha elhagyta a képernyőt
+                if (e.y > canvas.height) {
+                    if (e.type !== 'boost') updateScore(1);
+                    entities.splice(i, 1);
+                }
+            }
+
+            // Játékos járművének kirajzolása
+            if(isMotor) drawMotorbike(player.x, player.y, player.w, player.h, player.color);
+            else drawCar(player.x, player.y, player.w, player.h, player.color);
+        }
+
+        // --- DASH JUMP LOGIKA (Változatlanul stabil) ---
+
+        function updateDash() {
+            let floorY = canvas.height - 120;
+
+            let bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGradient.addColorStop(0, '#0f0c29');
+            bgGradient.addColorStop(0.5, '#302b63');
+            bgGradient.addColorStop(1, '#24243e');
+            ctx.fillStyle = bgGradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgba(0, 201, 255, 0.5)';
+            particles.forEach(p => {
+                p.x -= gameSpeed * 0.5;
+                if(p.x < 0) p.x = canvas.width;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
+            });
+
+            let floorGradient = ctx.createLinearGradient(0, floorY, 0, canvas.height);
+            floorGradient.addColorStop(0, '#00C9FF');
+            floorGradient.addColorStop(0.1, '#111');
+            floorGradient.addColorStop(1, '#000');
+            ctx.fillStyle = floorGradient; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+            
+            ctx.strokeStyle = 'rgba(0, 201, 255, 0.3)'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<canvas.width; i+=50) {
+                let offset = (i - (frameCount * gameSpeed)) % 50;
+                ctx.moveTo(offset + i, floorY); ctx.lineTo(offset + i, canvas.height);
+            }
+            ctx.stroke();
+
+            if (keys.jump && !player.isJumping) {
+                player.vy = player.jumpPower; player.isJumping = true;
+            }
+            player.vy += player.gravity; player.y += player.vy;
+            if (player.y >= floorY - player.h) {
+                player.y = floorY - player.h; player.vy = 0; player.isJumping = false;
+            }
+
+            if(frameCount % 400 === 0) gameSpeed += 0.5;
+
+            if (frameCount % Math.max(45, 90 - Math.floor(gameSpeed*2)) === 0) {
+                let type = Math.random() > 0.6 ? 'box' : 'spike';
+                let w = type === 'box' ? 45 : 35;
+                let h = type === 'box' ? 45 + Math.random()*30 : 45;
+                entities.push({ x: canvas.width, y: floorY - h, w: w, h: h, type: type, color: '#ff416c' });
+            }
+
+            for (let i = entities.length - 1; i >= 0; i--) {
+                let e = entities[i]; e.x -= gameSpeed;
+
+                ctx.fillStyle = e.color;
+                ctx.shadowColor = e.color; ctx.shadowBlur = 15;
+                
+                if(e.type === 'spike') {
+                    ctx.beginPath(); ctx.moveTo(e.x + e.w/2, e.y); ctx.lineTo(e.x + e.w, e.y + e.h); ctx.lineTo(e.x, e.y + e.h); ctx.fill();
+                } else {
+                    ctx.fillRect(e.x, e.y, e.w, e.h);
+                }
+                ctx.shadowColor = 'transparent';
+
+                let tol = 6;
+                if (player.x + tol < e.x + e.w && player.x + player.w - tol > e.x &&
+                    player.y + tol < e.y + e.h && player.y + player.h - tol > e.y) {
+                    gameOver();
+                }
+
+                if (e.x + e.w < 0) { updateScore(1); entities.splice(i, 1); }
+            }
+
+            ctx.save();
+            ctx.translate(player.x + player.w/2, player.y + player.h/2);
+            if(player.isJumping) ctx.rotate(frameCount * 0.15);
+            
+            ctx.shadowColor = player.color; ctx.shadowBlur = 20;
+            ctx.fillStyle = player.color;
+            ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+            
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-player.w/3, -player.h/4, 6, 6);
+            ctx.fillRect(player.w/6, -player.h/4, 6, 6);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(-player.w/4, player.h/6, player.w/2, 4);
+            ctx.restore();
+        }
+    </script>
+</body>
+</html>
